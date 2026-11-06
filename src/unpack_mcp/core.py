@@ -285,7 +285,9 @@ class ZipArchive(Archive):
                 kind = "dir"
             elif stat.S_ISLNK(mode):
                 kind = "symlink"
-            elif mode and not stat.S_ISREG(mode):
+            elif stat.S_IFMT(mode) and not stat.S_ISREG(mode):
+                # Permission-only modes (type bits 0, e.g. 0o600 as written by Python's zipfile
+                # on Unix) are ordinary files; only an explicit non-regular type is special.
                 kind = "special"
             else:
                 kind = "file"

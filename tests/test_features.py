@@ -328,3 +328,30 @@ def test_per_call_limits_can_only_tighten() -> None:
     assert (t.max_total_bytes, t.max_ratio, t.max_entries) == (100 * 1024 * 1024, 100, 50)
     t = base.tightened(1, 10, 5)
     assert (t.max_total_bytes, t.max_ratio, t.max_entries) == (1024 * 1024, 10, 5)
+
+
+@pytest.mark.parametrize(
+    ("mode", "ok"),
+    [
+        (0o600, True),  # permissions only: what Python's zipfile writes on Unix
+        (0o100644, True),  # explicit regular file
+        (0o020644, False),  # character device
+        (0o010644, False),  # FIFO
+    ],
+)
+def test_unix_mode_bits_decide_special_files(tmp_path: Path, mode: int, ok: bool) -> None:
+    # Windows writes zip entries as FAT (mode ignored), Linux/macOS as Unix; build the Unix
+    # form explicitly so this behaves the same on every OS.
+    z = tmp_path / "m.zip"
+    zi = zipfile.ZipInfo("f.txt")
+    zi.create_system = 3
+    zi.external_attr = mode << 16
+    with zipfile.ZipFile(z, "w") as zf:
+        zf.writestr(zi, b"data")
+    if ok:
+        ops.extract(str(z), str(tmp_path / "o"), LIM)
+        assert (tmp_path / "o" / "f.txt").read_bytes() == b"data"
+    else:
+        with pytest.raises(UnpackError, match="special file"):
+            ops.extract(str(z), str(tmp_path / "o"), LIM)
+        assert not (tmp_path / "o").exists() or not any((tmp_path / "o").iterdir())
