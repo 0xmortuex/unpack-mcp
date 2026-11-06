@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        # Extra Python versions run on ubuntu only - there's no OS-specific
+        # Python code, so the full cross product would just burn minutes.
+        exclude:
+          - os: windows-latest
+            python-version: "3.10"
+          - os: windows-latest
+            python-version: "3.11"
+          - os: windows-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.10"
+          - os: macos-latest
+            python-version: "3.11"
+          - os: macos-latest
+            python-version: "3.13"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install "ruff==0.16.0" "mypy==2.3.0" ".[test]"
+      - run: ruff check src tests
+      - run: mypy --strict src
+      - run: pytest tests -v
